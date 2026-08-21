@@ -1,0 +1,16 @@
+{
+  "name": "@rike422/skills-repository",
+  "private": true,
+  "workspaces": [
+    "tools/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @rike422/skeval",
+    "lint": "npm run lint --workspace @rike422/skeval",
+    "test": "npm run test --workspace @rike422/skeval",
+    "test:coverage": "npm run test:coverage --workspace @rike422/skeval"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

@@ -1,0 +1,14 @@
+schema_version: 1
+id: japanese-marker
+tags: [example, japanese]
+
+workspace:
+  fixture: ../fixtures/minimal
+
+prompt: |
+  作業が完了したことを示すファイルを作成してください。
+
+checks:
+  - type: file_contains
+    path: result.txt
+    contains: "done\n"
