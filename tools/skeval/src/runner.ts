@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { rm } from "node:fs/promises";
 import { z } from "zod";
@@ -52,6 +52,7 @@ export interface EvaluationResult {
   readonly runId: string;
   readonly skillName: string;
   readonly skillHash: string;
+  readonly suiteFingerprint: string;
   readonly agent: string;
   readonly startedAt: string;
   readonly finishedAt: string;
@@ -70,11 +71,54 @@ export interface EvaluationResult {
   readonly artifactDirectory: string;
 }
 
+export interface EvaluationEvidence {
+  readonly schemaVersion: 1;
+  readonly kind: "skeval-evaluation";
+  readonly runId: string;
+  readonly skillName: string;
+  readonly skillHash: string;
+  readonly suiteFingerprint: string;
+  readonly agent: string;
+  readonly cases: readonly {
+    readonly sourceId: string;
+    readonly id: string;
+    readonly tags: readonly string[];
+    readonly task: string;
+    readonly deterministicChecks: readonly CaseDefinition["checks"][number][];
+    readonly judgeRubric: string | null;
+    readonly withoutSkill: EvidenceVariant;
+    readonly withSkill: EvidenceVariant;
+    readonly delta: number | null;
+  }[];
+}
+
+interface EvidenceVariant {
+  readonly score: number | null;
+  readonly trials: readonly {
+    readonly trial: number;
+    readonly status: "success" | "error";
+    readonly score: number | null;
+    readonly error: string | null;
+    readonly judgeScore: number | null;
+    readonly judgeReason: string | null;
+    readonly checks: readonly { readonly name: string; readonly passed: boolean; readonly detail: string }[];
+    readonly diff: EvidenceText;
+    readonly finalResponse: EvidenceText;
+  }[];
+}
+
+interface EvidenceText {
+  readonly content: string;
+  readonly truncated: boolean;
+  readonly originalBytes: number;
+  readonly sha256: string;
+}
+
 export interface EvaluateOptions {
   readonly suitePath: string;
   readonly agentName: string;
   readonly outputRoot?: string;
-  readonly candidateSkill?: string;
+  readonly candidateSkillPath?: string;
   readonly showPrompts?: boolean;
   readonly allowExternalWorkspaces?: boolean;
   readonly adapterFactory?: (type: string) => AgentAdapter;
@@ -246,12 +290,78 @@ function mean(values: readonly number[]): number | null {
   return values.length === 0 ? null : values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
+function evidenceText(value: string, limit: number): EvidenceText {
+  const original = Buffer.from(value, "utf8");
+  let included = original.subarray(0, limit);
+  while (included.length > 0) {
+    try {
+      new TextDecoder("utf-8", { fatal: true }).decode(included);
+      break;
+    } catch {
+      included = included.subarray(0, included.length - 1);
+    }
+  }
+  return Object.freeze({
+    content: included.toString("utf8"),
+    truncated: included.length < original.length,
+    originalBytes: original.length,
+    sha256: createHash("sha256").update(original).digest("hex")
+  });
+}
+
+function evidenceVariant(variant: VariantResult): EvidenceVariant {
+  return Object.freeze({
+    score: variant.score,
+    trials: Object.freeze(variant.trials.map((trial) => Object.freeze({
+      trial: trial.trial,
+      status: trial.status,
+      score: trial.score,
+      error: trial.error,
+      judgeScore: trial.judgeScore,
+      judgeReason: trial.judgeReason,
+      checks: Object.freeze(trial.checks.map(({ name, passed, detail }) => Object.freeze({ name, passed, detail }))),
+      diff: evidenceText(trial.snapshot?.diff ?? "", 100_000),
+      finalResponse: evidenceText(trial.snapshot?.finalResponse ?? "", 20_000)
+    })))
+  });
+}
+
+function buildEvaluationEvidence(suite: SuiteDefinition, result: EvaluationResult): EvaluationEvidence {
+  return Object.freeze({
+    schemaVersion: 1,
+    kind: "skeval-evaluation",
+    runId: result.runId,
+    skillName: result.skillName,
+    skillHash: result.skillHash,
+    suiteFingerprint: result.suiteFingerprint,
+    agent: result.agent,
+    cases: Object.freeze(suite.cases.map((definition) => {
+      const outcome = result.cases.find((candidate) => candidate.id === definition.id);
+      if (outcome === undefined) throw new Error(`Missing evaluation result for evidence case: ${definition.id}`);
+      return Object.freeze({
+        sourceId: `${result.runId}:${definition.id}`,
+        id: definition.id,
+        tags: definition.tags,
+        task: definition.prompt,
+        deterministicChecks: definition.checks,
+        judgeRubric: definition.judge?.rubric ?? null,
+        withoutSkill: evidenceVariant(outcome.withoutSkill),
+        withSkill: evidenceVariant(outcome.withSkill),
+        delta: outcome.delta
+      });
+    }))
+  });
+}
+
 export async function evaluateSuite(options: EvaluateOptions): Promise<EvaluationResult> {
   const suite = await loadSuite(options.suitePath, options.agentName, {
     allowExternalWorkspaces: options.allowExternalWorkspaces ?? false
   });
   requireRole(suite.selectedAgent, "executor");
-  const bundle = await snapshotSkillBundle(suite.skillPath, options.candidateSkill);
+  const bundle = await snapshotSkillBundle(options.candidateSkillPath ?? suite.skillPath);
+  if (bundle.name !== suite.skillName) {
+    throw new Error(`Candidate Skill name ${bundle.name} must match evaluated Skill ${suite.skillName}`);
+  }
   const skillContent = bundle.skillText;
   const outputRoot = options.outputRoot ?? resolve(dirname(suite.suitePath), "..", "..", "..", ".skills-eval");
   const id = runId();
@@ -283,6 +393,7 @@ export async function evaluateSuite(options: EvaluateOptions): Promise<Evaluatio
       schemaVersion: 1,
       suitePath: suite.suitePath,
       skillPath: suite.skillPath,
+      evaluatedSkillPath: options.candidateSkillPath ?? suite.skillPath,
       skillHash: bundle.hash,
       skillManifest: bundle.files.map(({ path, hash, size, mode }) => ({ path, hash, size, mode })),
       selectedAgent: suite.selectedAgent,
@@ -330,11 +441,29 @@ export async function evaluateSuite(options: EvaluateOptions): Promise<Evaluatio
     const withoutSuite = scoreSuite(cases.map((item) => item.withoutSkill.score));
     const withSuite = scoreSuite(cases.map((item) => item.withSkill.score));
     const caseDeltas = cases.map((item) => item.delta).filter((delta): delta is number => delta !== null);
+    const suiteFingerprint = createHash("sha256").update(JSON.stringify({
+      schemaVersion: suite.schemaVersion,
+      selectedAgent: suite.selectedAgent,
+      defaults: suite.defaults,
+      cases: suite.cases.map((evalCase) => ({
+        id: evalCase.id,
+        tags: evalCase.tags,
+        prompt: evalCase.prompt,
+        workspace: evalCase.workspace,
+        pinnedWorkspace: (() => {
+          const pinned = pinnedWorkspaces.get(evalCase.id);
+          return pinned === undefined ? null : { baseOid: pinned.baseOid, sourceOid: pinned.sourceOid };
+        })(),
+        checks: evalCase.checks,
+        judge: evalCase.judge ?? null
+      }))
+    })).digest("hex");
     const result: EvaluationResult = Object.freeze({
       schemaVersion: 1,
       runId: id,
       skillName: suite.skillName,
       skillHash: bundle.hash,
+      suiteFingerprint,
       agent: suite.selectedAgent.name,
       startedAt,
       finishedAt: new Date().toISOString(),
@@ -352,6 +481,7 @@ export async function evaluateSuite(options: EvaluateOptions): Promise<Evaluatio
       }),
       artifactDirectory: artifacts.runDirectory
     });
+    await artifacts.writeJson("evidence.json", buildEvaluationEvidence(suite, result));
     await artifacts.finalize(result);
     return result;
   } catch (error) {

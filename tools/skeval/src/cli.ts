@@ -2,16 +2,16 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { iterateSuite } from "./iterate.js";
+import { compareSuite } from "./compare.js";
 import { evaluateSuite, type EvaluationResult } from "./runner.js";
 import { snapshotSkillBundle } from "./skill-bundle.js";
 import { loadSuite } from "./suite/loader.js";
 
 interface CliOptions {
-  readonly command: "validate" | "eval" | "iterate";
+  readonly command: "validate" | "eval" | "compare";
   readonly target: string;
   readonly agent: string;
-  readonly improverAgent?: string;
+  readonly candidatePath?: string;
   readonly outputRoot?: string;
   readonly showPrompts: boolean;
   readonly allowExternalWorkspaces: boolean;
@@ -19,19 +19,19 @@ interface CliOptions {
 
 function usage(): string {
   return `Usage:
-  skeval validate <suite-or-skill> [--agent <name>] [--allow-external-workspaces]
-  skeval eval <suite-or-skill> [--agent <name>] [--show-prompts] [--allow-external-workspaces] [--output <directory>]
-  skeval iterate <suite-or-skill> [--agent <name>] [--improver-agent <name>] [--allow-external-workspaces] [--output <directory>]
+  skeval validate <suite-or-skill> [--agent <name>] [--candidate <SKILL.md-or-directory>] [--allow-external-workspaces]
+  skeval eval <suite-or-skill> [--agent <name>] [--candidate <SKILL.md-or-directory>] [--show-prompts] [--allow-external-workspaces] [--output <directory>]
+  skeval compare <suite-or-skill> --candidate <SKILL.md-or-directory> [--agent <name>] [--show-prompts] [--allow-external-workspaces] [--output <directory>]
 
 Targets may be eval.yaml, a Skill directory, or a Skill name under ./skills.`;
 }
 
 function parseArgs(argv: readonly string[]): CliOptions {
   const [commandInput, target, ...rest] = argv;
-  if (commandInput !== "validate" && commandInput !== "eval" && commandInput !== "iterate") throw new Error(usage());
+  if (commandInput !== "validate" && commandInput !== "eval" && commandInput !== "compare") throw new Error(usage());
   if (target === undefined || target.startsWith("--")) throw new Error(usage());
   let agent = "claude";
-  let improverAgent: string | undefined;
+  let candidatePath: string | undefined;
   let outputRoot: string | undefined;
   let showPrompts = false;
   let allowExternalWorkspaces = false;
@@ -39,22 +39,23 @@ function parseArgs(argv: readonly string[]): CliOptions {
     const flag = rest[index];
     if (flag === "--show-prompts") showPrompts = true;
     else if (flag === "--allow-external-workspaces") allowExternalWorkspaces = true;
-    else if (flag === "--agent" || flag === "--improver-agent" || flag === "--output") {
+    else if (flag === "--agent" || flag === "--candidate" || flag === "--output") {
       const value = rest[index + 1];
       if (value === undefined) throw new Error(`Missing value for ${flag}`);
       if (flag === "--agent") agent = value;
-      else if (flag === "--improver-agent") improverAgent = value;
+      else if (flag === "--candidate") candidatePath = value;
       else outputRoot = resolve(value);
       index += 1;
     } else throw new Error(`Unknown option: ${flag}`);
   }
+  if (commandInput === "compare" && candidatePath === undefined) throw new Error("skeval compare requires --candidate");
   return {
     command: commandInput,
     target,
     agent,
     showPrompts,
     allowExternalWorkspaces,
-    ...(improverAgent === undefined ? {} : { improverAgent }),
+    ...(candidatePath === undefined ? {} : { candidatePath }),
     ...(outputRoot === undefined ? {} : { outputRoot })
   };
 }
@@ -65,6 +66,14 @@ async function resolveSuitePath(target: string): Promise<string> {
   if (directInfo?.isFile()) return direct;
   if (directInfo?.isDirectory()) return join(direct, "evals", "eval.yaml");
   return resolve("skills", target, "evals", "eval.yaml");
+}
+
+async function resolveSkillPath(target: string): Promise<string> {
+  const direct = resolve(target);
+  const info = await stat(direct).catch(() => undefined);
+  if (info?.isFile()) return direct;
+  if (info?.isDirectory()) return join(direct, "SKILL.md");
+  throw new Error(`Candidate Skill does not exist: ${target}`);
 }
 
 function formatScore(score: number | null): string {
@@ -101,35 +110,38 @@ async function showPrompts(result: EvaluationResult): Promise<void> {
 export async function main(argv: readonly string[] = process.argv.slice(2)): Promise<void> {
   const options = parseArgs(argv);
   const suitePath = await resolveSuitePath(options.target);
+  const candidateSkillPath = options.candidatePath === undefined ? undefined : await resolveSkillPath(options.candidatePath);
   if (options.command === "validate") {
     const suite = await loadSuite(suitePath, options.agent, { allowExternalWorkspaces: options.allowExternalWorkspaces });
-    const bundle = await snapshotSkillBundle(suite.skillPath);
-    process.stdout.write(`Valid: ${basename(suite.skillPath)} (${suite.cases.length} cases, sha256 ${bundle.hash})\n`);
+    const bundle = await snapshotSkillBundle(candidateSkillPath ?? suite.skillPath);
+    if (bundle.name !== suite.skillName) throw new Error(`Candidate Skill name ${bundle.name} must match evaluated Skill ${suite.skillName}`);
+    process.stdout.write(`Valid: ${basename(candidateSkillPath ?? suite.skillPath)} (${suite.cases.length} cases, sha256 ${bundle.hash})\n`);
     return;
   }
+  const shared = {
+    suitePath,
+    agentName: options.agent,
+    showPrompts: options.showPrompts,
+    allowExternalWorkspaces: options.allowExternalWorkspaces,
+    ...(options.outputRoot === undefined ? {} : { outputRoot: options.outputRoot })
+  };
   if (options.command === "eval") {
-    const result = await evaluateSuite({
-      suitePath,
-      agentName: options.agent,
-      showPrompts: options.showPrompts,
-      allowExternalWorkspaces: options.allowExternalWorkspaces,
-      ...(options.outputRoot === undefined ? {} : { outputRoot: options.outputRoot })
-    });
+    const result = await evaluateSuite({ ...shared, ...(candidateSkillPath === undefined ? {} : { candidateSkillPath }) });
     printResult(result);
     if (options.showPrompts) await showPrompts(result);
     return;
   }
-  const result = await iterateSuite({
-    suitePath,
-    agentName: options.agent,
-    allowExternalWorkspaces: options.allowExternalWorkspaces,
-    ...(options.improverAgent === undefined ? {} : { improverAgentName: options.improverAgent }),
-    ...(options.outputRoot === undefined ? {} : { outputRoot: options.outputRoot })
-  });
-  process.stdout.write(`Candidate: ${result.candidatePath}\nCurrent: ${formatScore(result.current.score.withSkill)}\nCandidate: ${formatScore(result.candidate.score.withSkill)}\nDelta: ${formatScore(result.delta)}\n`);
+  if (candidateSkillPath === undefined) throw new Error("skeval compare requires --candidate");
+  const result = await compareSuite({ ...shared, candidateSkillPath });
+  process.stdout.write(`Current: ${formatScore(result.current.score.withSkill)}\nCandidate: ${formatScore(result.candidate.score.withSkill)}\nDelta: ${formatScore(result.delta)}\n`);
   process.stdout.write(`Deterministic pass rate: ${formatScore(result.comparison.current.deterministicPassRate)} -> ${formatScore(result.comparison.candidate.deterministicPassRate)}\n`);
   for (const regression of result.comparison.deterministicRegressions) {
     process.stdout.write(`REGRESSION ${regression.check}: ${regression.currentPassRate.toFixed(3)} -> ${regression.candidatePassRate.toFixed(3)}\n`);
+  }
+  process.stdout.write(`\nComparison: ${result.artifactPath}\nCurrent artifacts: ${result.current.artifactDirectory}\nCandidate artifacts: ${result.candidate.artifactDirectory}\n`);
+  if (options.showPrompts) {
+    await showPrompts(result.current);
+    await showPrompts(result.candidate);
   }
 }
 

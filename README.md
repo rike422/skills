@@ -1,6 +1,6 @@
 # Skills
 
-This repository is the canonical, agent-independent source for reusable Agent Skills and their behavioral regression tests. It also contains `skeval`, an auditable CLI for measuring whether a Skill improves a coding agent on real workspace tasks.
+This repository is the canonical, agent-independent source for reusable Agent Skills and their behavioral regression tests. It also contains small, auditable tools for turning coding-agent evidence into candidates and measuring whether a Skill improves real workspace outcomes.
 
 It deliberately does not install files into a home directory. Dotfiles or chezmoi should clone this repository and expose the canonical Skills to Claude Code, Codex, Cursor, OpenCode, or other agents.
 
@@ -19,8 +19,10 @@ skills/
 │           ├── cases/*.yaml   behavioral test cases
 │           └── fixtures/**    test workspaces
 ├── agent-specific/            only genuinely non-portable additions
-├── tools/skeval/              evaluation CLI and framework tests
-└── .skills-eval/              generated runs and candidates (ignored)
+├── tools/agent-codify/        evidence classification and candidate authoring
+├── tools/skeval/              evaluation-only CLI and framework tests
+├── .agent-codify/             generated reports and untrusted candidates (ignored)
+└── .skills-eval/              generated evaluation runs (ignored)
 ```
 
 There is one canonical copy of every shared Skill under `skills/<name>/SKILL.md`. Do not add manually synchronized Claude/Codex/Cursor/OpenCode copies here.
@@ -51,7 +53,11 @@ After package linking or installation, use `skeval` directly:
 ```bash
 skeval validate rails --agent claude
 skeval eval rails --agent claude --show-prompts
-skeval iterate rails --agent claude
+skeval compare rails --candidate path/to/candidate/rails/SKILL.md --agent claude
+
+agent-codify analyze --generator-command /path/to/generator --from .episodes --project-root /path/to/repo
+agent-codify analyze --generator-command /path/to/generator --shoka-query "repeated migration failures" --shoka-repository /path/to/repo
+agent-codify draft --generator-command /path/to/generator --analysis .agent-codify/analysis/<run>/result.json --approval approval.json
 ```
 
 A target can be an `eval.yaml` path, a Skill directory, or a name under `./skills`.
@@ -68,7 +74,7 @@ agents:
   claude:
     type: claude
     model: sonnet
-    roles: [executor, judge, improver]
+    roles: [executor, judge]
 
 defaults:
   trials: 2
@@ -157,17 +163,35 @@ The judge sees the task, rubric, deterministic results, diff, and final response
 
 Error counts remain separate from scores so an unavailable agent cannot look like a bad Skill.
 
-## Iteration
+## Codification workflow
 
-`skeval iterate` evaluates the current Skill, sends weak-case evidence to a no-tools improver role, writes a candidate, and evaluates that candidate against the same suite.
+`agent-codify` owns episode analysis, conservative codification classification, human-approved Skill drafting, and independent critic review. It accepts Shoka transcript-episode/v1 records or explicitly queried Shoka history; it does not refresh the Shoka index or install its output.
 
 ```text
-.skills-eval/<skill>/candidates/
-├── iteration-001.md
-└── iteration-001.json
+evidence
+   ↓
+agent-codify
+   ├── tooling or project-rule recommendation
+   ├── existing-Skill improvement candidate
+   └── new Skill candidate
+             ↓
+          skeval
+             ↓
+      with/without evidence
 ```
 
-The production `SKILL.md` is never overwritten. Promotion is an explicit review and copy/edit operation outside `skeval`.
+The shared [`codify-session`](skills/codify-session/SKILL.md) Skill provides the natural-language entry point. A request such as “このセッションから再利用できる知識を抽出して、適切ならSkill候補を評価して” can coordinate the stages without merging their responsibilities.
+
+The `analyze` result never contains or writes a Skill candidate. Only a human-approved cluster that passes the independent evidence and Skill gate can enter `draft`. Generated eval proposals are inert JSON and are never executed as command checks. Promotion, project-rule edits, and tooling changes remain explicit human actions.
+
+`skeval` owns only validation and empirical evaluation:
+
+```bash
+skeval eval rails --candidate path/to/candidate/rails/SKILL.md
+skeval compare rails --candidate path/to/candidate/rails/SKILL.md
+```
+
+`eval` measures the supplied candidate against the no-Skill branch. `compare` evaluates both the canonical Skill and candidate, writes a machine-readable comparison under `.skills-eval/<skill>/comparisons/`, and reports deterministic regressions. Candidate directories may contain portable `references/`, `scripts/`, and `assets/`. The production `SKILL.md` is never overwritten.
 
 ## Audit artifacts
 
@@ -184,12 +208,13 @@ Each run is namespaced and create-only:
 │   ├── diff.patch
 │   ├── snapshot.json
 │   └── checks.json
+├── evidence.json
 ├── result.json
 ├── manifest.json
 └── state/{running,completed,interrupted}.json
 ```
 
-The run context records the Skill hash, fixed workspace identities, agent executable/version/model, checks, and effective configuration. The manifest hashes the finalized run artifacts through `result.json`; `completed.json` is written afterward as an intentionally unhashed commit marker. Output is capped, and an oversized diff is an infrastructure error rather than a silently truncated score.
+The run context records the Skill hash, fixed workspace identities, agent executable/version/model, checks, and effective configuration. `evidence.json` is the versioned handoff to `agent-codify`; it includes task prompts, rubrics, deterministic checks, and compact with/without outcomes. The manifest hashes the finalized run artifacts through `result.json`; `completed.json` is written afterward as an intentionally unhashed commit marker. Output is capped, and an oversized diff is an infrastructure error rather than a silently truncated score.
 
 ## Trust boundaries and current constraints
 
@@ -197,7 +222,8 @@ The run context records the Skill hash, fixed workspace identities, agent execut
 - Symlinks are rejected in Skills, fixtures, and outcome snapshots.
 - Fixture and Git sources are copied to disposable repositories. External Git inputs require both `trusted: true` in the case and the CLI's `--allow-external-workspaces` opt-in; they must be clean and cannot use submodules, LFS, or nested repositories in schema v1.
 - Git metadata lives outside the agent-writable worktree. Evaluator-owned Git operations use the fixed metadata path and disable system/global config, hooks, fsmonitor, signing, interactive prompts, and implicit local object sharing.
-- Agent executables are selected by built-in adapter type; a suite cannot substitute an arbitrary executable. Claude runs with safe mode, fail-closed sandboxing, fixed `Bash/Edit/Write` tools, no session persistence, no MCP servers, an environment allowlist, and no permission bypass. Judge and improver roles have no tools.
+- Agent executables are selected by built-in adapter type; a suite cannot substitute an arbitrary executable. Claude runs with safe mode, fail-closed sandboxing, fixed `Bash/Edit/Write` tools, no session persistence, no MCP servers, an environment allowlist, and no permission bypass. Judge roles have no tools.
+- `agent-codify` invokes the explicitly selected generator command without a shell, stores episode inputs, catalog snapshots, prompts, raw responses, validation attempts, approvals, critic results, and candidates outside the canonical `skills/` tree. Shoka history mode invokes the local CLI without a shell, validates `transcript-episode/v1`, snapshots the returned episodes, and records the query and selected episode IDs in provenance.
 - Command checks come only from local case YAML. Each runs on its own immutable outcome copy with an isolated `HOME`/`TMPDIR`, denied network, restricted writes, and a read allowlist for the workspace and system/toolchain paths.
 - Command checks fail closed when the OS sandbox cannot be activated. The current implementation supports `sandbox-exec`; a bubblewrap backend is the next Linux portability step.
 - Skills and repositories are still untrusted input. Case-defined command checks execute trusted local test code, so review them before running a third-party suite. Schema v1 does not impose workspace size quotas; avoid untrusted or unexpectedly large inputs.
@@ -206,7 +232,7 @@ The run context records the Skill hash, fixed workspace identities, agent execut
 
 The stable v1 boundaries are suite/case schema, Skill bundle, pinned workspace, agent roles/adapters, outcome snapshot, checks, scoring, and result artifacts. Likely next steps are:
 
-1. Codex and OpenCode adapters using the existing completed-prompt interface.
+1. Codex and OpenCode adapters using the existing completed-prompt interfaces.
 2. Linux bubblewrap command-check sandbox.
 3. `--all-agents` coordination and cross-agent comparison reports.
 4. Run budgets, JUnit export, and repeated-run confidence reporting after real usage establishes the needed semantics.
@@ -214,12 +240,9 @@ The stable v1 boundaries are suite/case schema, Skill bundle, pinned workspace, 
 
 This is intentionally not a plugin framework, hosted service, database, or general-purpose LLM evaluation platform.
 
-## Reference influence
+## References
 
-The layout combines two useful patterns without copying their APIs:
-
-- mizchi's `waxa`: lightweight suite/case organization, with/without comparison, and evidence-driven iteration;
-- `agent-skill-eval`: real coding-agent harnesses, repository-state assertions, negative controls, repeated runs, and explicit run metadata;
-- Microsoft's Waza and UiPath `coder_eval`: colocated behavioral fixtures and ordinary test/lint/build tools as external graders.
-
-All executor, injection, and judge prompts were reimplemented locally so the final input remains inspectable.
+- [mizchi/skills (`tools/waxa`)](https://github.com/mizchi/skills/tree/main/tools/waxa)
+- [microsoft/waza](https://github.com/microsoft/waza)
+- [tardigrde/agent-skill-eval](https://github.com/tardigrde/agent-skill-eval)
+- [UiPath/coder_eval](https://github.com/UiPath/coder_eval)

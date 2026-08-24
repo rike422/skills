@@ -10,4 +10,4 @@ export * from "./skill-bundle.js";
 export * from "./snapshot.js";
 export * from "./suite/loader.js";
 export * from "./workspace.js";
-export * from "./iterate.js";
+export * from "./compare.js";

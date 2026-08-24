@@ -25,7 +25,7 @@ class BranchAdapter implements AgentAdapter {
   }
 }
 
-async function createSuite(root: string, roles = "[executor, judge, improver]"): Promise<string> {
+async function createSuite(root: string, roles = "[executor, judge]"): Promise<string> {
   const skill = join(root, "skills", "branches");
   await mkdir(join(skill, "evals", "cases"), { recursive: true });
   await mkdir(join(skill, "evals", "fixture"));

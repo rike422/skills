@@ -3,7 +3,7 @@ import { z } from "zod";
 const agentSchema = z.object({
   type: z.string().min(1),
   model: z.string().min(1).optional(),
-  roles: z.array(z.enum(["executor", "judge", "improver"])).default(["executor", "judge", "improver"])
+  roles: z.array(z.enum(["executor", "judge"])).default(["executor", "judge"])
 }).strict();
 
 export const suiteSchema = z.object({

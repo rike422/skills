@@ -5,10 +5,10 @@
     "tools/*"
   ],
   "scripts": {
-    "build": "npm run build --workspace @rike422/skeval",
-    "lint": "npm run lint --workspace @rike422/skeval",
-    "test": "npm run test --workspace @rike422/skeval",
-    "test:coverage": "npm run test:coverage --workspace @rike422/skeval"
+    "build": "npm run build --workspaces",
+    "lint": "npm run lint --workspaces",
+    "test": "npm run test --workspaces",
+    "test:coverage": "npm run test:coverage --workspaces"
   },
   "engines": {
     "node": ">=22"

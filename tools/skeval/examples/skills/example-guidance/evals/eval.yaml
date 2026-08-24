@@ -5,7 +5,7 @@ agents:
   claude:
     type: claude
     model: sonnet
-    roles: [executor, judge, improver]
+    roles: [executor, judge]
 
 defaults:
   trials: 1

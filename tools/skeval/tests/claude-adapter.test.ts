@@ -27,12 +27,10 @@ describe("ClaudeAdapter", () => {
     expect(settings.sandbox?.filesystem?.allowRead).toContain("/tmp/workspace");
   });
 
-  it("removes tools for judge and improver roles", () => {
-    for (const role of ["judge", "improver"] as const) {
-      const invocation = buildClaudeInvocation({ executable: "claude", prompt: "task", cwd: "/tmp", timeoutMs: 1000, role });
-      const toolIndex = invocation.argv.indexOf("--tools");
-      expect(invocation.argv[toolIndex + 1]).toBe("");
-    }
+  it("removes tools for the judge role", () => {
+    const invocation = buildClaudeInvocation({ executable: "claude", prompt: "task", cwd: "/tmp", timeoutMs: 1000, role: "judge" });
+    const toolIndex = invocation.argv.indexOf("--tools");
+    expect(invocation.argv[toolIndex + 1]).toBe("");
   });
 
   it("rejects malformed JSON output", async () => {

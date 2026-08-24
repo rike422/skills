@@ -1,4 +1,4 @@
-export type AgentRole = "executor" | "judge" | "improver";
+export type AgentRole = "executor" | "judge";
 
 export interface AgentDefinition {
   readonly name: string;

@@ -65,5 +65,14 @@ cases: [cases/*.yaml]
     expect(result.score.withSkill).toBe(1);
     expect(adapter.resourceSeen).toBe(true);
     expect(result.cases[0]?.withSkill.trials[0]?.snapshot?.files.some((file) => file.path.startsWith(".skeval-skill"))).toBe(false);
+    const evidence = JSON.parse(await readFile(join(result.artifactDirectory, "evidence.json"), "utf8")) as {
+      kind: string;
+      cases: { task: string; deterministicChecks: unknown[]; withSkill: { trials: { diff: { truncated: boolean; originalBytes: number; sha256: string } }[] } }[];
+    };
+    expect(evidence.kind).toBe("skeval-evaluation");
+    expect(evidence.cases[0]?.task).toBe("Complete the task.");
+    expect(evidence.cases[0]?.deterministicChecks).toHaveLength(1);
+    expect(evidence.cases[0]?.withSkill.trials[0]?.diff).toMatchObject({ truncated: false, originalBytes: expect.any(Number) });
+    expect(evidence.cases[0]?.withSkill.trials[0]?.diff.sha256).toMatch(/^[a-f0-9]{64}$/);
   });
 });

@@ -64,7 +64,7 @@ async function collectFiles(root: string, path: string): Promise<string[]> {
   return result;
 }
 
-export async function snapshotSkillBundle(skillPathInput: string, candidate?: string): Promise<SkillBundle> {
+export async function snapshotSkillBundle(skillPathInput: string): Promise<SkillBundle> {
   const unresolvedSkill = await lstat(skillPathInput);
   if (unresolvedSkill.isSymbolicLink()) throw new Error(`Skill entrypoint must not be a symlink: ${skillPathInput}`);
   const skillPath = await realpath(skillPathInput);
@@ -81,9 +81,7 @@ export async function snapshotSkillBundle(skillPathInput: string, candidate?: st
   let skillText = "";
   for (const path of paths.sort()) {
     const relativePath = relative(root, path).split(sep).join("/");
-    const content = relativePath === "SKILL.md" && candidate !== undefined
-      ? Buffer.from(candidate, "utf8")
-      : await readFile(path);
+    const content = await readFile(path);
     if (relativePath === "SKILL.md") skillText = decodeUtf8(content, "SKILL.md");
     const info = await lstat(path);
     files.push({
