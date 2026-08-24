@@ -55,22 +55,31 @@ describe("Shoka transcript episode source", () => {
     await expect(loadShokaEvidence({ executable: fake.executable, query: "invalid" })).rejects.toThrow(/transcript-episode\/v1/i);
   });
 
-  it("lists episodes without a query and preserves empty results", async () => {
+  it("summarizes, lists, and exports queryless episode candidates", async () => {
     const root = await mkdtemp(join(tmpdir(), "agent-codify-shoka-list-"));
     const fake = await fakeShoka(root);
     const selection = await loadShokaEpisodeList({
       executable: fake.executable,
-      filters: { agent: "codex", eventType: "design_direction", from: "2026-08-01", to: "2026-08-22" }
+      filters: { agent: "codex", eventType: "design_direction", from: "2026-08-01", to: "2026-08-22", before: 2, after: 4 }
     });
     expect(selection.selectionType).toBe("shoka-list");
     expect(selection.complete).toBe(true);
     expect(selection.episodeIds).toEqual(["codex:list:1:design_direction"]);
-    const empty = await loadShokaEpisodeList({ executable: fake.executable, filters: {} });
-    expect(empty.documents).toHaveLength(1);
+    expect(selection.summary).toMatchObject({ episodes: 1, sessions: 1, task_lineages: 1, projects: 1 });
+    expect(selection.candidates[0]).toMatchObject({ episode_id: "codex:list:1:design_direction", task_status: "complete" });
+    expect(selection.documents[0]?.value).toMatchObject({ schema_version: "transcript-episode/v1" });
     const calls = (await readFile(fake.logPath, "utf8")).trim().split("\n").map((line) => JSON.parse(line) as string[]);
     expect(calls[0]).toEqual([
+      "transcript", "episode", "summary", "--agent", "codex", "--event-type", "design_direction",
+      "--from", "2026-08-01", "--to", "2026-08-22", "--json"
+    ]);
+    expect(calls[1]).toEqual([
       "transcript", "episode", "list", "--agent", "codex", "--event-type", "design_direction",
       "--from", "2026-08-01", "--to", "2026-08-22", "--json"
+    ]);
+    expect(calls[2]).toEqual([
+      "transcript", "episode", "export", "codex:list:1:design_direction",
+      "--output", expect.any(String), "--before", "2", "--after", "4"
     ]);
   });
 
@@ -79,6 +88,25 @@ describe("Shoka transcript episode source", () => {
     const fake = await fakeShoka(root);
     const selection = await loadShokaEpisodeList({ executable: fake.executable, filters: { eventType: "empty" } });
     expect(selection.documents).toHaveLength(0);
+    expect(selection.summary.episodes).toBe(0);
+  });
+
+  it("deduplicates candidate IDs before export", async () => {
+    const root = await mkdtemp(join(tmpdir(), "agent-codify-shoka-list-dedup-"));
+    const fake = await fakeShoka(root);
+    const selection = await loadShokaEpisodeList({ executable: fake.executable, filters: { eventType: "duplicate" } });
+    expect(selection.episodeIds).toEqual(["codex:list:1:design_direction"]);
+    const calls = (await readFile(fake.logPath, "utf8")).trim().split("\n").map((line) => JSON.parse(line) as string[]);
+    expect(calls.filter((args) => args[2] === "export")).toHaveLength(1);
+  });
+
+  it("fails closed on summary/list mismatch, excessive candidates, and incompatible exports", async () => {
+    const root = await mkdtemp(join(tmpdir(), "agent-codify-shoka-list-contract-"));
+    const fake = await fakeShoka(root);
+    await expect(loadShokaEpisodeList({ executable: fake.executable, filters: { eventType: "mismatch" } })).rejects.toThrow(/summary.*list/i);
+    await expect(loadShokaEpisodeList({ executable: fake.executable, filters: { eventType: "too-many" } })).rejects.toThrow(/500.*narrow/i);
+    await expect(loadShokaEpisodeList({ executable: fake.executable, filters: { eventType: "invalid" } })).rejects.toThrow(/transcript-episode\/v1/i);
+    await expect(loadShokaEpisodeList({ executable: fake.executable, filters: { eventType: "oversized-export" } })).rejects.toThrow(/exceeds 1048576 bytes/i);
   });
 
   it("stops before generation when no episode matched", async () => {

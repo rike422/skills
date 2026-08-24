@@ -48,11 +48,13 @@ describe("agent-codify CLI", () => {
       "--shoka-agent", "codex",
       "--shoka-event-type", "design_direction",
       "--shoka-from", "2026-08-01",
-      "--shoka-to", "2026-08-22"
+      "--shoka-to", "2026-08-22",
+      "--shoka-before", "2",
+      "--shoka-after", "4"
     ])).toMatchObject({
       command: "analyze",
       shokaList: true,
-      shokaFilters: { agent: "codex", eventType: "design_direction", from: "2026-08-01", to: "2026-08-22" }
+      shokaFilters: { agent: "codex", eventType: "design_direction", from: "2026-08-01", to: "2026-08-22", before: 2, after: 4 }
     });
   });
 

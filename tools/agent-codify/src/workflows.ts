@@ -113,7 +113,7 @@ async function loadCatalogFor(options: SharedOptions): Promise<CatalogSnapshot> 
 }
 
 async function prepareRun(
-  options: SharedOptions,
+  options: SharedOptions & { readonly selection?: RunProvenance["selection"] },
   category: "analysis" | "draft",
   evidence: readonly EvidenceDocument[],
   catalog: CatalogSnapshot,
@@ -121,6 +121,7 @@ async function prepareRun(
 ): Promise<string> {
   const directory = await createRunDirectory(options.outputRoot ?? resolve(".agent-codify"), category);
   await writeInputSnapshot(directory, evidence, catalog, prompt);
+  if (options.selection !== undefined) await writeJson(join(directory, "selection.json"), options.selection);
   return directory;
 }
 
@@ -179,10 +180,17 @@ export async function runShokaListAnalyze(
     ...(options.filters === undefined ? {} : { filters: options.filters }),
     ...(options.shokaExecutable === undefined ? {} : { executable: options.shokaExecutable })
   });
-  const filters = Object.fromEntries(Object.entries(options.filters ?? {}).filter((entry): entry is [string, string] => entry[1] !== undefined));
+  const filters = Object.fromEntries(Object.entries(options.filters ?? {}).filter((entry): entry is [string, string | number] => entry[1] !== undefined));
   return runAnalyzeEvidence({
     ...options,
-    selection: { type: selection.selectionType, filters, episodeIds: selection.episodeIds, complete: selection.complete }
+    selection: {
+      type: selection.selectionType,
+      filters,
+      episodeIds: selection.episodeIds,
+      complete: selection.complete,
+      ...(selection.summary === undefined ? {} : { summary: selection.summary }),
+      candidates: selection.candidates
+    }
   }, selection.documents);
 }
 

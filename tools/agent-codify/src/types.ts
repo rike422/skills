@@ -32,8 +32,12 @@ const sourceReferenceSchema = z.object({
   state: z.string()
 }).strict();
 
+export const transcriptTriggerTypeSchema = z.enum([
+  "user_correction", "error", "test_failure", "requirement_restatement", "scope_revision", "design_direction"
+]);
+
 const transcriptTriggerSchema = z.object({
-  type: z.enum(["user_correction", "error", "test_failure", "requirement_restatement", "scope_revision", "design_direction"]),
+  type: transcriptTriggerTypeSchema,
   event_id: z.number().int().positive(),
   timestamp: z.string().optional(),
   reason: z.string().optional()
@@ -88,6 +92,31 @@ export const sessionEpisodeSchema = z.object({
     actions_after: z.number().int().nonnegative(),
     outcomes: z.number().int().nonnegative()
   }).strict()
+}).strict();
+
+export const transcriptEpisodeCandidateSchema = z.object({
+  episode_id: z.string().min(1),
+  transcript_id: z.string().min(1),
+  native_session_id: z.string().min(1),
+  task_lineage_id: z.string(),
+  project_id: z.string(),
+  workspace_id: z.string().optional(),
+  trigger: z.object({
+    type: transcriptTriggerTypeSchema,
+    event_id: z.number().int().positive(),
+    timestamp: z.string().optional(),
+    reason: z.string().optional()
+  }).strict(),
+  task_status: z.enum(["complete", "failed", "unknown"])
+}).strict();
+
+export const transcriptEpisodeAggregateSchema = z.object({
+  episodes: z.number().int().nonnegative(),
+  sessions: z.number().int().nonnegative(),
+  task_lineages: z.number().int().nonnegative(),
+  projects: z.number().int().nonnegative(),
+  by_trigger: z.record(z.string(), z.number().int().nonnegative()),
+  by_status: z.record(z.string(), z.number().int().nonnegative())
 }).strict();
 
 export const evalProposalSchema = z.object({
@@ -223,6 +252,8 @@ export const draftBundleSchema = z.object({
 export type InstructionMeaning = z.infer<typeof instructionMeaningSchema>;
 export type Destination = z.infer<typeof destinationSchema>;
 export type SessionEpisode = z.infer<typeof sessionEpisodeSchema>;
+export type TranscriptEpisodeCandidate = z.infer<typeof transcriptEpisodeCandidateSchema>;
+export type TranscriptEpisodeAggregate = z.infer<typeof transcriptEpisodeAggregateSchema>;
 export type AnalysisResult = z.infer<typeof analysisResultSchema>;
 export type AnalysisCluster = AnalysisResult["clusters"][number];
 export type Approval = z.infer<typeof approvalSchema>;
@@ -304,6 +335,8 @@ export interface RunProvenance {
     readonly filters: Readonly<Record<string, string | number>>;
     readonly episodeIds: readonly string[];
     readonly complete: boolean;
+    readonly summary?: TranscriptEpisodeAggregate;
+    readonly candidates?: readonly TranscriptEpisodeCandidate[];
   };
   readonly retries: number;
 }

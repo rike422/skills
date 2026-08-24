@@ -10,15 +10,27 @@ From Shoka-compatible episode files:
 
 From the Shoka session index:
 
-    agent-codify analyze --generator-command /path/to/generator --shoka-list --shoka-event-type design_direction --shoka-from 2026-08-01 --shoka-to 2026-08-22 --shoka /path/to/shoka
+    agent-codify analyze --generator-command /path/to/generator --shoka-list --shoka-from 2026-08-17 --shoka-to 2026-08-23 --shoka /path/to/shoka
 
-For a complete episode population, prefer the queryless list endpoint. Use one invocation per event type when needed and deduplicate by episode_id before semantic analysis.
+For a bounded episode population, prefer the queryless flow. agent-codify calls
+Shoka summary, validates the metadata-only list, deduplicates episode IDs, and
+exports each selected `transcript-episode/v1` before analysis. Use
+`--shoka-event-type` for a focused run and `--shoka-before`/`--shoka-after` to
+bound exported context.
+
+The flow fails closed above 500 candidates or 8 MiB of exported evidence.
+Narrow the date window or event type instead of silently sampling. An empty
+list is a valid no-evidence result.
 
 For a supplementary relevance search:
 
     agent-codify analyze --generator-command /path/to/generator --shoka-query "repeated design corrections" --shoka-repository /path/to/project
 
-analyze stores the input episodes, selection type and filters, catalog snapshot, effective prompt, raw generator responses, validation attempts, analysis result, and report under .agent-codify/analysis/. It never writes SKILL.md. An empty list is a valid no-evidence result; search remains query-based and is not a completeness guarantee.
+analyze stores exported input episodes, `selection.json` with Shoka summary and
+candidate metadata, selection filters, catalog snapshot, effective prompt, raw
+generator responses, validation attempts, analysis result, and report under
+.agent-codify/analysis/. It never writes SKILL.md. Search remains query-based
+and is not a completeness guarantee.
 
 The canonical input is Shoka's transcript-episode/v1. Each episode must identify its transcript, native session, task lineage, project, trigger, and traceable correction/result events.
 

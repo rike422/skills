@@ -3,10 +3,11 @@ import { join } from "node:path";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
-import { runAnalyze, runDraft } from "../src/workflows.js";
+import { runAnalyze, runDraft, runShokaListAnalyze } from "../src/workflows.js";
 import { sha256 } from "../src/output.js";
 import type { GenerationRequest, GenerationResult, TextGenerator } from "../src/types.js";
 import { episode } from "./helpers/episode.js";
+import { fakeShoka } from "./helpers/fake-shoka.js";
 
 class QueueGenerator implements TextGenerator {
   readonly type = "fake";
@@ -115,6 +116,24 @@ describe("canonical analyze/draft workflow", () => {
     expect(await readFile(join(run.artifacts.directory, "attempts", "analysis-001.raw.txt"), "utf8")).toContain("unexpected");
     expect(await readFile(join(run.artifacts.directory, "attempts", "analysis-001.validation.json"), "utf8")).toContain("\"ok\": false");
     expect(generator.prompts).toHaveLength(2);
+  });
+
+  it("audits Shoka summary and candidate metadata before analysis", async () => {
+    const root = await tempDirectory();
+    const fake = await fakeShoka(root);
+    const result = { schema_version: 1, kind: "agent-codify-analysis", summary: "Insufficient independent evidence.", clusters: [] };
+    const run = await runShokaListAnalyze({
+      generator: new QueueGenerator([JSON.stringify(result)]),
+      shokaExecutable: fake.executable,
+      filters: { eventType: "design_direction" },
+      outputRoot: join(root, "output")
+    });
+    const selection = JSON.parse(await readFile(join(run.artifacts.directory, "selection.json"), "utf8")) as Record<string, unknown>;
+    expect(selection).toMatchObject({
+      type: "shoka-list",
+      summary: { episodes: 1 },
+      candidates: [{ episode_id: "codex:list:1:design_direction" }]
+    });
   });
 
   it("drafts only an approved cluster and independently criticizes it", async () => {

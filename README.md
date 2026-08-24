@@ -165,7 +165,11 @@ Error counts remain separate from scores so an unavailable agent cannot look lik
 
 ## Codification workflow
 
-`agent-codify` owns episode analysis, conservative codification classification, human-approved Skill drafting, and independent critic review. It accepts Shoka transcript-episode/v1 records or explicitly queried Shoka history; it does not refresh the Shoka index or install its output.
+`agent-codify` owns episode analysis, conservative codification classification,
+human-approved Skill drafting, and independent critic review. For a bounded
+Shoka period it verifies summary and metadata-only list results, then exports
+the selected transcript-episode/v1 records one at a time. It does not refresh
+the Shoka index or install its output.
 
 ```text
 evidence

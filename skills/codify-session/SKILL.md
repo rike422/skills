@@ -1,30 +1,50 @@
 ---
 name: codify-session
-description: Analyze coding-agent episodes by extracting and deduplicating user judgments, separating independent evidence from same-lineage repetition, and routing approved findings to the safest codification destination. Use for evidence-based session codification, not ordinary Skill authoring.
+description: Analyze bounded coding-agent episode windows, including periodic reviews, by extracting user judgments, separating independent evidence, and routing approved findings to the safest codification destination. Use for evidence-based session codification, not ordinary Skill authoring.
 ---
 
 # Codify Session
 
 Keep the responsibilities separate:
 
-- Shoka observes transcript episodes, session and project identity, corrections, implementation changes, and observable results.
+- Shoka lists episode metadata, summarizes deterministic counts, and exports one detailed episode at a time.
 - agent-codify assigns meaning, clusters equivalent judgments, counts independent evidence, checks existing owners, and recommends a destination.
 - A human approves clusters before `draft` creates an untrusted candidate.
 - skill-creator reviews the approved candidate; skeval evaluates only a reviewed eval suite.
 
-## Collect evidence
+## Review a bounded period
 
-Use the queryless episode list as the canonical input when analyzing a period or event family:
+For a weekly review, use explicit dates so the run is reproducible. Omit
+`--shoka-event-type` to include every observable trigger in the window:
 
     agent-codify analyze --generator-command <executable> --shoka-list \
-      --shoka-event-type design_direction --shoka-from <YYYY-MM-DD> --shoka-to <YYYY-MM-DD> \
+      --shoka-from <YYYY-MM-DD> --shoka-to <YYYY-MM-DD> \
       --shoka <shoka-executable> --skills <skill-root> --agents <AGENTS.md> --project-root <project>
 
-Repeat the list for each required event type and union by `episode_id` when the CLI accepts one event type per invocation. Include at least `user_correction`, `design_direction`, `scope_revision`, and `requirement_restatement` when they are available. The list result, filters, and catalog snapshot are part of the audit record.
+Run `shoka session sync` first only when collection has been authorized. Analysis
+never syncs implicitly. Without explicit dates, Shoka selects its previous
+seven-day window; prefer explicit dates for scheduled or compared runs.
+
+The queryless flow is deterministic:
+
+1. call `transcript episode summary` and reject more than 500 candidates;
+2. call the metadata-only `transcript episode list` and deduplicate by `episode_id`;
+3. verify list counts against the summary;
+4. call `transcript episode export` for every selected ID;
+5. analyze only the exported `transcript-episode/v1` documents.
+
+Do not silently sample when the candidate limit or 8 MiB evidence budget is
+exceeded. Narrow the date window or event type and keep each resulting run as a
+separate audited population. Use `--shoka-before` and `--shoka-after` only to
+bound exported context; they do not change candidate selection.
 
 Use `--shoka-query` only as a supplementary relevance search. Do not treat search results as a complete population or mix them into independent evidence counts without marking them as supplementary. Use episode files with `--from` when an exact, already materialized input is required.
 
-The canonical input is `transcript-episode/v1`. Preserve stable transcript, native session, task lineage, project, trigger, source event, and omission metadata. An empty list is valid evidence of no matching episodes and should produce an insufficient-evidence result, not a fabricated candidate.
+The canonical analysis input is the exported `transcript-episode/v1`, not list
+metadata. Preserve stable transcript, native session, task lineage, project,
+trigger, source event, and omission metadata. An empty list is valid evidence
+of no matching episodes and should produce an insufficient-evidence result,
+not a fabricated candidate.
 
 ## Extract judgments, not wording
 
@@ -98,10 +118,19 @@ Otherwise recommend the more local destination or `INSUFFICIENT_EVIDENCE`. In pa
 
 `analyze` produces judgment records, semantic clusters, evidence counts, existing-owner findings, destination recommendations, and gate status. It never writes a Skill.
 
+For periodic improvement, stop after `analyze` by default and review
+`report.md`, `result.json`, and `selection.json`. A recurring schedule does not
+authorize drafting or modifying a Skill.
+
 After a human reviews the exact analysis result, create approval metadata bound to its hash and run `draft`. `draft` may create only an untrusted candidate for an approved `NEW_SKILL` or `ITERATE_EXISTING_SKILL` cluster. It must not install, promote, overwrite, or expand authority.
 
 Run an independent skill-creator review against the candidate. Check that it adds no generic advice, does not universalize a personal case, has a short distinctive description, has narrow responsibility, references only available tools and Skills, separates details into references appropriately, preserves user scope, and should not be merged into an existing owner. `quick_validate` is syntax validation only; it is not a semantic quality gate. Materialize and review eval proposals before running skeval.
 
 ## Audit every outcome
 
-For successful and failed runs, retain the input episodes, list/search filters and selection type, catalog snapshot, effective prompt, raw generator output, schema validation results, retry history, analysis result, human-approved clusters, candidate, critic findings, and eval results. Mark whether the final artifact is a recommendation, hypothesis, unvalidated candidate, evaluated candidate, or rejected result.
+For successful and failed runs, retain the input episodes, Shoka summary,
+candidate metadata, list/search filters and selection type, catalog snapshot,
+effective prompt, raw generator output, schema validation results, retry
+history, analysis result, human-approved clusters, candidate, critic findings,
+and eval results. Mark whether the final artifact is a recommendation,
+hypothesis, unvalidated candidate, evaluated candidate, or rejected result.

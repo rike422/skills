@@ -31,7 +31,7 @@ export interface CliOptions {
 function usage(): string {
   return "Usage:\n" +
     "  agent-codify analyze --generator-command <executable> [--generator-arg <arg>] --from <transcript-episode.json-or-directory> [--from <path>...] [--skills <directory>] [--agents <AGENTS.md>] [--project-root <directory>] [--output <directory>]\n" +
-    "  agent-codify analyze --generator-command <executable> [--generator-arg <arg>] --shoka-list [--shoka-agent <agent>] [--shoka-event-type <type>] [--shoka-from <date>] [--shoka-to <date>] [--shoka <executable>]\n" +
+    "  agent-codify analyze --generator-command <executable> [--generator-arg <arg>] --shoka-list [--shoka-agent <agent>] [--shoka-event-type <type>] [--shoka-from <date>] [--shoka-to <date>] [--shoka-before <number>] [--shoka-after <number>] [--shoka <executable>]\n" +
     "  agent-codify analyze --generator-command <executable> [--generator-arg <arg>] --shoka-query <query> [--shoka-agent <agent>] [--shoka-repository <path>] [--shoka-file <path>] [--shoka-event-type <type>] [--shoka-from <date>] [--shoka-to <date>] [--shoka-top <number>] [--shoka-before <number>] [--shoka-after <number>] [--shoka <executable>]\n" +
     "  agent-codify draft --generator-command <executable> [--generator-arg <arg>] --analysis <analysis-result.json> --approval <approval.json> [--eval-result <result.json>] [--output <directory>] [--quick-validate <script>] [--show-prompt]\n\n" +
     "analyze never creates a Skill. draft requires explicit human approval and writes only an untrusted candidate artifact.";
@@ -107,7 +107,7 @@ export function parseArgs(argv: readonly string[]): CliOptions {
   if (commandInput === "analyze" && episodePaths.length === 0 && shokaQuery === undefined && !shokaList) throw new Error("analyze requires --from, --shoka-list, or --shoka-query");
   if (commandInput === "analyze" && episodePaths.length > 0 && (shokaQuery !== undefined || shokaList)) throw new Error("--from cannot be combined with Shoka selection");
   if (commandInput === "analyze" && shokaQuery !== undefined && shokaList) throw new Error("--shoka-list and --shoka-query cannot be combined");
-  if (commandInput === "analyze" && shokaList && (shokaFilters.repository !== undefined || shokaFilters.file !== undefined || shokaFilters.top !== undefined || shokaFilters.before !== undefined || shokaFilters.after !== undefined)) throw new Error("--shoka-list only supports agent, event type, and date filters");
+  if (commandInput === "analyze" && shokaList && (shokaFilters.repository !== undefined || shokaFilters.file !== undefined || shokaFilters.top !== undefined)) throw new Error("--shoka-list only supports agent, event type, date, and export context filters");
   if (commandInput === "draft" && (analysisPath === undefined || approvalPath === undefined)) throw new Error("draft requires --analysis and --approval");
   if (commandInput === "draft" && hasShokaOptions) throw new Error("Shoka options are only valid for analyze");
   if (commandInput === "draft" && episodePaths.length > 0) throw new Error("--from is only valid for analyze");
@@ -161,7 +161,9 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
         ...(options.shokaFilters.agent === undefined ? {} : { agent: options.shokaFilters.agent }),
         ...(options.shokaFilters.eventType === undefined ? {} : { eventType: options.shokaFilters.eventType }),
         ...(options.shokaFilters.from === undefined ? {} : { from: options.shokaFilters.from }),
-        ...(options.shokaFilters.to === undefined ? {} : { to: options.shokaFilters.to })
+        ...(options.shokaFilters.to === undefined ? {} : { to: options.shokaFilters.to }),
+        ...(options.shokaFilters.before === undefined ? {} : { before: options.shokaFilters.before }),
+        ...(options.shokaFilters.after === undefined ? {} : { after: options.shokaFilters.after })
       };
       printResult(await runShokaListAnalyze({ ...shared, filters, shokaExecutable: options.shokaExecutable }));
     } else {
