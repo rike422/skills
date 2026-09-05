@@ -1,0 +1,13 @@
+name: rike422-skills
+version: "0.1.0"
+description: Portable design and coding skills shared across supported coding agents.
+targets:
+  - claude
+  - cursor
+  - codex
+dependencies:
+  apm:
+    - ./skills/design-contract-first
+    - ./skills/godot-game-data-flow
+  mcp: []
+scripts: {}

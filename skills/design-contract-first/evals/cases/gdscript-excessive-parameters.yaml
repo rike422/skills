@@ -1,0 +1,15 @@
+schema_version: 1
+id: gdscript-excessive-parameters
+tags: [parameters, gdscript, ownership]
+workspace:
+  fixture: ../fixtures/gdscript-excessive-parameters
+prompt: |
+  Refactor combat_resolver.gd to reduce the 19-argument resolve_attack function.
+  Preserve the represented behavior and leave the source in a coherent end state.
+checks:
+  - type: file_changed
+    path: combat_resolver.gd
+judge:
+  agent: claude
+  rubric: |
+    Pass only if the change investigates and expresses a coherent responsibility and canonical owner rather than merely reducing the visible count. It must not pack the arguments into a Dictionary, array, varargs, or other weak data bag. Any new parameter object must be typed and cohesive: its fields share responsibility, lifecycle, or invariants. Prefer reusing or consolidating the existing AttackContext when it is the actual owner; splitting responsibilities is acceptable when justified. The resulting public function should have at most five parameters unless the response clearly establishes why a higher count is necessary.

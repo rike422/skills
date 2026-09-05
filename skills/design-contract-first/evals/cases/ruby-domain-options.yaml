@@ -1,0 +1,14 @@
+schema_version: 1
+id: ruby-domain-options
+tags: [record-vs-map, ruby, request]
+workspace:
+  fixture: ../fixtures/ruby-domain-options
+prompt: |
+  Add a coupon code, requested delivery date, and gift-message fields to the domain request handled in create_order.rb. Refactor the design as needed instead of preserving the current options shape by default.
+checks:
+  - type: file_changed
+    path: create_order.rb
+judge:
+  agent: claude
+  rubric: |
+    Pass only if the fixed-schema domain request becomes or is consolidated into a typed canonical request/value object (for example a class, Data.define, or suitable Struct), rather than adding keys to the options Hash or introducing a parallel compatibility bag. The canonical object should own applicable field definitions, validation/defaults, and construction so callers do not reproduce key strings. The response must avoid a mechanical wrapper when the fields do not form a cohesive responsibility, and should update the active path cleanly rather than retain dual APIs solely for migration convenience.

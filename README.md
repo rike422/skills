@@ -27,6 +27,37 @@ skills/
 
 There is one canonical copy of every shared Skill under `skills/<name>/SKILL.md`. Do not add manually synchronized Claude/Codex/Cursor/OpenCode copies here.
 
+## APM distribution
+
+Each `skills/<name>/` directory is an independently installable APM Skill. The root `apm.yml` is the maintainer manifest for installing and validating every Skill from a source checkout against Claude, Cursor, and Codex. It currently declares:
+
+- `design-contract-first`
+- `godot-game-data-flow`
+
+From this source checkout, preview or apply every declared Skill:
+
+```bash
+apm install --dry-run --target claude,cursor,codex
+apm install --target claude,cursor,codex
+```
+
+Consumers should install the published Skill subdirectory they need:
+
+```bash
+apm install rike422/skills/skills/design-contract-first --target claude,cursor,codex
+apm install rike422/skills/skills/godot-game-data-flow --target claude,cursor,codex
+```
+
+Install both at user scope with one command:
+
+```bash
+apm install --global --target claude,cursor,codex \
+  rike422/skills/skills/design-contract-first \
+  rike422/skills/skills/godot-game-data-flow
+```
+
+By default APM uses the shared `.agents/skills/` layout understood by supported clients; use `--legacy-skill-paths` only when a client requires its own legacy Skill directory. This repository remains the canonical source. Commit the root `apm.yml` and `apm.lock.yaml`, but do not commit generated target directories or `apm_modules/` here.
+
 ## Evals are tests
 
 `skills/<name>/evals` contains behavioral and regression tests for that Skill. A case asks a real coding agent to modify an isolated workspace, then grades the resulting repository with deterministic checks and, when necessary, a branch-blinded LLM judge.

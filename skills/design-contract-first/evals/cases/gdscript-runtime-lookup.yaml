@@ -1,0 +1,14 @@
+schema_version: 1
+id: gdscript-runtime-player-lookup
+tags: [record-vs-map, gdscript, dynamic-map]
+workspace:
+  fixture: ../fixtures/gdscript-runtime-lookup
+prompt: |
+  Implement the missing player registry operations in player_registry.gd. Players must be looked up by player_id, where IDs are discovered only while the game is running.
+checks:
+  - type: file_changed
+    path: player_registry.gd
+judge:
+  agent: claude
+  rubric: |
+    Pass only if the solution allows a Dictionary (or equivalent map) for the runtime-keyed player_id lookup. It must not create a class per lookup entry merely because typed records are generally preferred. The values may remain typed Player objects, and normal input checks are acceptable, but the dynamic key collection itself should be treated as a legitimate map rather than forced into a fixed-schema record.

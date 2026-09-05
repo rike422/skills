@@ -1,0 +1,14 @@
+schema_version: 1
+id: typescript-external-json-boundary
+tags: [record-vs-map, typescript, boundary]
+workspace:
+  fixture: ../fixtures/typescript-external-json
+prompt: |
+  Implement parseAccountResponse in account_api.ts for the external JSON payload documented in the file. Return a safe domain value that callers can use without knowing transport key strings.
+checks:
+  - type: file_changed
+    path: account_api.ts
+judge:
+  agent: claude
+  rubric: |
+    Pass only if the solution accepts unknown or map-like data at the external JSON boundary, validates the fixed schema there, and immediately converts it to an explicit typed domain contract. The boundary representation must not propagate through domain callers as Record<string, unknown>, a loose object, or an unchecked assertion. The typed result should own applicable field types and construction/validation; serialization concerns may remain at the boundary.
