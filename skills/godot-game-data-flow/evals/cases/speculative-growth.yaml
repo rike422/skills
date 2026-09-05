@@ -1,0 +1,14 @@
+schema_version: 1
+id: speculative-growth
+tags: [horizon, yagni, migration-trigger]
+workspace:
+  fixture: ../fixtures/speculative-growth
+prompt: |
+  Add a stamina change indicator to the current single-player HUD. Today Player owns stamina and HUD is its only consumer in the same gameplay scene. Someone mentioned that online multiplayer, replay recording, and mod support might be interesting someday, but none are planned or represented elsewhere in the repository. Keep the implementation suitable for the known scope while making future reconsideration possible.
+checks:
+  - type: file_changed
+    path: player.gd
+judge:
+  agent: claude
+  rubric: |
+    Pass only if the solution uses a local owner-managed call/signal relationship or an equivalently small topology for the current evidence. It must not create global buses, networking abstractions, replay infrastructure, or mod APIs for speculative possibilities. It should preserve Player as the stamina authority, publish after mutation, and state a concrete migration trigger such as a committed cross-scene consumer or independent lifetime rather than merely saying the design can scale later.

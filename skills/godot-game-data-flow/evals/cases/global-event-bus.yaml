@@ -1,0 +1,14 @@
+schema_version: 1
+id: global-event-bus
+tags: [event-bus, cross-scene, lifetime]
+workspace:
+  fixture: ../fixtures/global-event-bus
+prompt: |
+  Implement notification of a completed career season. CareerState survives scene changes; the title screen, achievement service, save scheduler, and platform integration independently appear and disappear and all need to react to the committed season result. There is no shared scene owner for these consumers. Choose an appropriate Godot communication topology and keep state ownership clear.
+checks:
+  - type: file_changed
+    path: career_state.gd
+judge:
+  agent: claude
+  rubric: |
+    Pass only if the solution recognizes an application-scoped event bus or an equivalently explicit cross-scene application event channel as justified by the independent lifetimes and lack of a common scene owner. The bus must carry a typed fact after CareerState commits the season result; it must not become the owner or mutable store of career state. Handler order must not determine the career result, and querying current state must remain the responsibility of CareerState or a read-only projection.

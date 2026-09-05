@@ -1,0 +1,14 @@
+schema_version: 1
+id: local-transient-state
+tags: [local-state, anti-overengineering, animation]
+workspace:
+  fixture: ../fixtures/local-transient-state
+prompt: |
+  Fix the player-card hover animation, which occasionally resumes from the wrong progress after the card is recreated. Another developer proposed putting hover progress in GameState and broadcasting every frame through the global Events bus. Implement a maintainable fix and explain the state ownership decision.
+checks:
+  - type: file_changed
+    path: player_card.gd
+judge:
+  agent: claude
+  rubric: |
+    Pass only if hover/animation progress remains local to the player-card presentation lifecycle or is derived from local UI state. It must not place per-frame transient presentation state in a global store or global event bus. Cleanup or initialization should make recreation deterministic. The response should distinguish local presentation state from authoritative career or match data without invoking a broader architecture solely because the project itself is large.

@@ -1,0 +1,14 @@
+schema_version: 1
+id: committed-feature-growth
+tags: [scope, horizon, feature-bus]
+workspace:
+  fixture: ../fixtures/committed-feature-growth
+prompt: |
+  Extend the match goal flow for the next scheduled milestone. Goal events currently update the scoreboard. The approved milestone also adds live commentary, match history, achievements, and replay capture; those consumers are created and destroyed at different times during a match. Design and implement the flow needed for that committed scope without turning it into an application-wide catch-all.
+checks:
+  - type: file_changed
+    path: match_flow.gd
+judge:
+  agent: claude
+  rubric: |
+    Pass only if the implementation accounts for all explicitly committed consumers rather than optimizing only for the existing scoreboard. A match-scoped event hub, match-owned mediator, or equivalently bounded feature topology is expected because consumers have different lifetimes and fan-out is committed. It must not introduce one global Events singleton for unrelated application domains. The authoritative match owner must still commit score before publishing the goal fact, and the response should identify a concrete trigger for revisiting the topology if the event later crosses the match boundary.

@@ -1,0 +1,14 @@
+schema_version: 1
+id: football-multiple-writers
+tags: [ownership, commands, football]
+workspace:
+  fixture: ../fixtures/football-multiple-writers
+prompt: |
+  Refactor this Godot match-scoring flow. Goals are currently reflected by several scripts mutating score-related state independently, and results sometimes depend on signal callback order. Keep the represented behavior, but make the authoritative state and update flow explicit. The match commentary and HUD must continue to react to goals.
+checks:
+  - type: file_changed
+    path: match_state.gd
+judge:
+  agent: claude
+  rubric: |
+    Pass only if the final design gives one owner exclusive authority to commit the score, routes mutation requests through an explicit command-style API, and emits a fact-style event after the state and derived match result are consistent. HUD and commentary may react, but must not mutate domain score or determine match results. The solution must remove or redirect the competing write paths rather than adding another coordinator alongside them, and domain correctness must not depend on signal callback order.

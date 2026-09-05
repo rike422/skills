@@ -1,0 +1,14 @@
+schema_version: 1
+id: ui-domain-boundary
+tags: [ui, domain-state, command-query]
+workspace:
+  fixture: ../fixtures/ui-domain-boundary
+prompt: |
+  Refactor the squad screen so dragging a player between slots no longer edits CareerState's lineup Dictionary directly. The screen must show validation errors and refresh after an accepted change. Preserve the current user interaction and keep domain rules outside the UI.
+checks:
+  - type: file_changed
+    path: career_state.gd
+judge:
+  agent: claude
+  rubric: |
+    Pass only if CareerState or a cohesive domain service owns lineup validation and mutation behind an explicit command-style method. The UI may submit intent, receive a typed result or rejection, and refresh from an event/query/read-only snapshot, but it must not retain writable access to canonical lineup data. The final path should not duplicate lineup truth in the UI or retain the old Dictionary mutation path for compatibility.

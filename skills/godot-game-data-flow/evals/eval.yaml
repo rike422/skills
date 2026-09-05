@@ -1,0 +1,13 @@
+schema_version: 1
+skill: ../SKILL.md
+agents:
+  claude:
+    type: claude
+    model: sonnet
+    roles: [executor, judge]
+defaults:
+  trials: 1
+  timeout_seconds: 300
+  skill_delivery: prompt
+cases:
+  - cases/*.yaml

@@ -1,0 +1,14 @@
+schema_version: 1
+id: signal-cascade-ordering
+tags: [ordering, derived-state, signals]
+workspace:
+  fixture: ../fixtures/signal-cascade-ordering
+prompt: |
+  Correct the end-of-match flow. A full-time signal currently fans out to standings, rewards, save data, and UI; rewards sometimes use the previous standings because connected callbacks run in an unintended order. Preserve all outcomes while removing the ordering dependency.
+checks:
+  - type: file_changed
+    path: match_finalizer.gd
+judge:
+  agent: claude
+  rubric: |
+    Pass only if one authoritative orchestration path validates and commits the required domain updates in explicit order or as one coherent transaction before observers are notified. Signals may fan out presentation, logging, persistence scheduling, or other reactions after commit, but callback order must not determine standings or rewards. The fix must not rely on rearranging connect order, deferred timing, or another undocumented signal chain.
