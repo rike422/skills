@@ -1,0 +1,14 @@
+schema_version: 1
+id: version-drift
+tags: [cli-version, documentation, troubleshooting]
+workspace:
+  fixture: ../fixtures/version-drift
+prompt: |
+  Repair the APM maintenance instructions. They were copied from an older guide and fail on the installed APM version. Keep the workflow reproducible and prefer evidence from the installed CLI and current official documentation.
+checks:
+  - type: file_changed
+    path: MAINTENANCE.md
+judge:
+  agent: claude
+  rubric: |
+    Pass only if the solution checks the installed `apm --version` and relevant command `--help` before changing commands, replaces unsupported or deprecated flags with commands verified for that version, and records any remaining version assumption. For APM 0.29-era behavior, `apm update` is preferred over deprecated `apm install --update`, `--frozen` replaces stale `--frozen-lockfile`, and shared `.agents/skills` is the default unless legacy paths are explicitly requested. It must not trust a third-party Skill over the installed CLI or current official APM documentation.

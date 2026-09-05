@@ -1,0 +1,11 @@
+name: rike422-skills
+version: "0.1.0"
+targets:
+  - claude
+  - cursor
+  - codex
+dependencies:
+  apm:
+    - ./skills/design-contract-first
+  mcp: []
+scripts: {}

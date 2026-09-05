@@ -1,0 +1,14 @@
+schema_version: 1
+id: add-repository-skill
+tags: [manifest, local-dependency, documentation]
+workspace:
+  fixture: ../fixtures/add-repository-skill
+prompt: |
+  Make the new `skills/new-review/SKILL.md` distributable through this repository's existing APM setup. Update only the repository files needed for source-checkout management and documented public installation. Do not install anything globally.
+checks:
+  - type: file_changed
+    path: apm.yml
+judge:
+  agent: claude
+  rubric: |
+    Pass only if `./skills/new-review` is added as a relative local dependency in the root maintainer manifest, existing dependencies and targets are preserved, and public documentation uses the GitHub subdirectory reference `rike422/skills/skills/new-review` rather than a local path. The response must regenerate or explicitly require regeneration of the root lockfile and validate the Skill. It must not add generated `.agents`, `.claude`, or `apm_modules` content to the repository, run a global install, or convert the repository into a packed plugin.

@@ -31,6 +31,7 @@ There is one canonical copy of every shared Skill under `skills/<name>/SKILL.md`
 
 Each `skills/<name>/` directory is an independently installable APM Skill. The root `apm.yml` is the maintainer manifest for installing and validating every Skill from a source checkout against Claude, Cursor, and Codex. It currently declares:
 
+- `apm-skill-distribution`
 - `design-contract-first`
 - `godot-game-data-flow`
 
@@ -44,14 +45,16 @@ apm install --target claude,cursor,codex
 Consumers should install the published Skill subdirectory they need:
 
 ```bash
+apm install rike422/skills/skills/apm-skill-distribution --target claude,cursor,codex
 apm install rike422/skills/skills/design-contract-first --target claude,cursor,codex
 apm install rike422/skills/skills/godot-game-data-flow --target claude,cursor,codex
 ```
 
-Install both at user scope with one command:
+Install all published Skills at user scope with one command:
 
 ```bash
 apm install --global --target claude,cursor,codex \
+  rike422/skills/skills/apm-skill-distribution \
   rike422/skills/skills/design-contract-first \
   rike422/skills/skills/godot-game-data-flow
 ```

@@ -1,0 +1,9 @@
+name: distribution-source
+version: "0.1.0"
+targets: [claude, cursor, codex]
+dependencies:
+  apm:
+    - ./skills/first-skill
+    - ./skills/second-skill
+  mcp: []
+scripts: {}

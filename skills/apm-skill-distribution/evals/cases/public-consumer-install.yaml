@@ -1,0 +1,14 @@
+schema_version: 1
+id: public-consumer-install
+tags: [consumer, subdirectory, global]
+workspace:
+  fixture: ../fixtures/public-consumer-install
+prompt: |
+  Document how a user should install only `godot-game-data-flow`, or all published Skills, after this repository has been pushed to GitHub. Include Cursor and Codex. Do not change the Skill contents.
+checks:
+  - type: file_changed
+    path: INSTALL.md
+judge:
+  agent: claude
+  rubric: |
+    Pass only if the commands use public virtual subdirectory references such as `rike422/skills/skills/godot-game-data-flow`, use `--target claude,cursor,codex` or an equivalent explicit target set, and distinguish project scope from optional `--global` user scope. Installing all Skills may use multiple positional subdirectory packages. The documentation must not tell consumers to use the maintainer-only relative dependencies, claim that the unpushed commit is remotely available, or require `apm pack`.

@@ -1,0 +1,14 @@
+schema_version: 1
+id: safe-isolated-install
+tags: [validation, isolation, root-trap]
+workspace:
+  fixture: ../fixtures/safe-isolated-install
+prompt: |
+  Verify that both Skills declared by this repository deploy correctly for Claude, Cursor, and Codex. The working tree has unrelated edits that must not be changed, and no user-scope installation is authorized.
+checks:
+  - type: file_changed
+    path: verification-plan.md
+judge:
+  agent: claude
+  rubric: |
+    Pass only if the verification runs from a separate temporary consumer working directory, installs the repository's individual local Skill paths there, and inspects the resulting shared `.agents/skills` and Claude compatibility paths. It must not run positional `apm install` from the source repository with only `--root`, because that can mutate the source `apm.yml`. It must not use `--global`, modify unrelated edits, or treat dry-run alone as proof that target files were deployed. Temporary output and source-repository generated caches must be kept out of the commit.

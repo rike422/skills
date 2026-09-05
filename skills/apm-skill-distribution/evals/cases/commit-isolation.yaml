@@ -1,0 +1,14 @@
+schema_version: 1
+id: commit-isolation
+tags: [git, dirty-worktree, scope]
+workspace:
+  fixture: ../fixtures/commit-isolation
+prompt: |
+  Prepare the APM distribution update for commit. The repository also contains an unrelated deletion and an unfinished tool refactor. Commit only the reviewed Skill distribution changes and report what remains dirty.
+checks:
+  - type: file_changed
+    path: commit-plan.md
+judge:
+  agent: claude
+  rubric: |
+    Pass only if the plan stages explicit distribution paths instead of using `git add .`, inspects the staged diff, runs whitespace and secret/absolute-home-path checks, and leaves the unrelated deletion and tool refactor unstaged. It must use a conventional `feat:` or `chore:` prefix with a Japanese commit body if it commits, must not push without a separate instruction, and must report the remaining dirty paths after commit.
